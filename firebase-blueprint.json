@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Athlete": {
+      "title": "Athlete Registration",
+      "description": "Athlete details matching the club's spreadsheet format.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "school": { "type": "string" },
+        "instagram": { "type": "string" },
+        "whatsappAthlete": { "type": "string" },
+        "height": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentJob": { "type": "string" },
+        "address": { "type": "string" },
+        "whatsappParent": { "type": "string" },
+        "email": { "type": "string" },
+        "sessionsPerWeek": { "type": "string" },
+        "trainingSchedule": { "type": "string" }
+      },
+      "required": ["fullName", "birthDate", "whatsappParent", "email"]
+    },
+    "News": {
+      "title": "News Item",
+      "description": "Latest news and updates from the club.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      }
+    },
+    "CompetitionResult": {
+      "title": "Competition Result",
+      "description": "Best time records for athletes.",
+      "type": "object",
+      "properties": {
+        "athleteName": { "type": "string" },
+        "eventName": { "type": "string" },
+        "time": { "type": "string" },
+        "competitionName": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["athleteName", "eventName", "time"]
+    },
+    "Competition": {
+      "title": "Competition",
+      "description": "A scheduled swimming competition or internal meet.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "ongoing", "completed"] }
+      },
+      "required": ["name", "date"]
+    },
+    "CompetitionEntry": {
+      "title": "Competition Entry",
+      "description": "Registration of an athlete for a specific event in a competition.",
+      "type": "object",
+      "properties": {
+        "competitionId": { "type": "string" },
+        "athleteName": { "type": "string" },
+        "eventName": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["registered", "finished", "dns"] }
+      },
+      "required": ["competitionId", "athleteName", "eventName"]
+    },
+    "Album": {
+      "title": "Photo Album",
+      "description": "A collection of photos from an event or session.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title"]
+    },
+    "Photo": {
+      "title": "Photo",
+      "description": "A single photo in an album.",
+      "type": "object",
+      "properties": {
+        "albumId": { "type": "string" },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["albumId", "url"]
+    }
+  },
+  "firestore": {
+    "/registrations/{regId}": {
+      "schema": "Athlete",
+      "description": "Stored member registrations."
+    },
+    "/news/{newsId}": {
+      "schema": "News",
+      "description": "Club news articles."
+    },
+    "/competition_results/{resId}": {
+      "schema": "CompetitionResult",
+      "description": "Competition results and best times."
+    },
+    "/competitions/{compId}": {
+      "schema": "Competition",
+      "description": "Scheduled competitions."
+    },
+    "/competition_entries/{entryId}": {
+      "schema": "CompetitionEntry",
+      "description": "Athlete entries per competition."
+    },
+    "/albums/{albumId}": {
+      "schema": "Album",
+      "description": "Photo albums."
+    },
+    "/photos/{photoId}": {
+      "schema": "Photo",
+      "description": "Individual photos."
+    }
+  }
+}

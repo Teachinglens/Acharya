@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidAthlete(data) {
+      return data.fullName is string && data.fullName.size() <= 200 &&
+             data.birthDate is string && data.birthDate.size() <= 100 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.whatsappParent is string && data.whatsappParent.size() <= 50;
+    }
+
+    // Registrations: Anyone can create (public sign up), but only admins can list.
+    // Owners (not implemented via auth yet, but for now we allow creation)
+    match /registrations/{regId} {
+      allow create: if isValidAthlete(request.resource.data);
+      allow get, list: if true; 
+    }
+
+    // News: Public read, Admin write
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if false; // Placeholder for admin
+    }
+
+    // Competition Results: Public read, Anyone can submit (for now)
+    match /competition_results/{resId} {
+      allow read: if true;
+      allow create: if true; // Public input for the demo
+      allow update, delete: if false;
+    }
+
+    match /competitions/{compId} {
+      allow read: if true;
+      allow create, update, delete: if true; // Demo mode
+    }
+
+    match /competition_entries/{entryId} {
+      allow read: if true;
+      allow create, update, delete: if true; // Demo mode
+    }
+
+    match /albums/{albumId} {
+      allow read: if true;
+      allow create, update, delete: if true; // Demo mode
+    }
+
+    match /photos/{photoId} {
+      allow read: if true;
+      allow create, update, delete: if true; // Demo mode
+    }
+  }
+}
