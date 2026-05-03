@@ -41,6 +41,9 @@ export interface CompetitionEntry {
   competitionName?: string; // Cache for real-time display
   date?: string; // Cache for real-time display
   athleteName: string;
+  athleteId?: string; // Reference to athlete
+  gender?: string;
+  ku?: string;
   eventName: string;
   time?: string; // Set when result is recorded
   status: 'registered' | 'finished' | 'dns';
@@ -48,8 +51,10 @@ export interface CompetitionEntry {
 
 export interface CompetitionResult {
   id?: string;
-  athleteId: string;
+  athleteId?: string;
   athleteName: string;
+  gender?: string;
+  ku?: string;
   eventName: string; // e.g., '25M gaya bebas'
   time: string; // format mm:ss.ms
   competitionName: string;

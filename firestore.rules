@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "mahardikasandy1992@gmail.com";
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -22,44 +26,42 @@ service cloud.firestore {
              data.whatsappParent is string && data.whatsappParent.size() <= 50;
     }
 
-    // Registrations: Anyone can create (public sign up), but only admins can list.
-    // Owners (not implemented via auth yet, but for now we allow creation)
+    // Registrations: Anyone can create (public sign up)
     match /registrations/{regId} {
       allow create: if isValidAthlete(request.resource.data);
-      allow get, list: if true; 
+      allow get, list, update, delete: if isAdmin(); 
     }
 
     // News: Public read, Admin write
     match /news/{newsId} {
       allow read: if true;
-      allow write: if false; // Placeholder for admin
+      allow write: if isAdmin();
     }
 
-    // Competition Results: Public read, Anyone can submit (for now)
+    // Competition Results: Public read, Admin write
     match /competition_results/{resId} {
       allow read: if true;
-      allow create: if true; // Public input for the demo
-      allow update, delete: if false;
+      allow write: if isAdmin();
     }
 
     match /competitions/{compId} {
       allow read: if true;
-      allow create, update, delete: if true; // Demo mode
+      allow write: if isAdmin();
     }
 
     match /competition_entries/{entryId} {
       allow read: if true;
-      allow create, update, delete: if true; // Demo mode
+      allow write: if isAdmin();
     }
 
     match /albums/{albumId} {
       allow read: if true;
-      allow create, update, delete: if true; // Demo mode
+      allow write: if isAdmin();
     }
 
     match /photos/{photoId} {
       allow read: if true;
-      allow create, update, delete: if true; // Demo mode
+      allow write: if isAdmin();
     }
   }
 }

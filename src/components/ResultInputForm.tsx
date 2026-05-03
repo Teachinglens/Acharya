@@ -1,18 +1,48 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { SWIMMING_EVENTS } from '../types';
+import { SWIMMING_EVENTS, AthleteData } from '../types';
 import { Loader2, Trophy } from 'lucide-react';
 
-export default function ResultInputForm() {
+interface Props {
+  athletes?: AthleteData[];
+}
+
+export default function ResultInputForm({ athletes = [] }: Props) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     athleteName: '',
+    gender: 'Male',
+    ku: '10',
     eventName: SWIMMING_EVENTS[0],
     time: '',
     competitionName: '',
     date: new Date().toISOString().split('T')[0]
   });
+
+  const handleNameChange = (name: string) => {
+    const athlete = athletes.find(a => a.fullName === name);
+    if (athlete) {
+      const g = athlete.gender?.trim().toLowerCase();
+      const gender = (g === 'laki-laki' || g === 'l' || g === 'male') ? 'Male' : 'Female';
+      
+      let ku = '10';
+      if (athlete.birthDate) {
+        const birthYear = parseInt(athlete.birthDate.split('/').pop() || '0');
+        const age = 2026 - birthYear;
+        if (age <= 6) ku = '6';
+        else if (age <= 8) ku = '8';
+        else if (age <= 10) ku = '10';
+        else if (age <= 12) ku = '12';
+        else if (age <= 14) ku = '14';
+        else if (age <= 16) ku = '16';
+        else ku = 'Senior';
+      }
+      setForm(prev => ({ ...prev, athleteName: name, gender, ku }));
+    } else {
+      setForm(prev => ({ ...prev, athleteName: name }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,11 +73,44 @@ export default function ResultInputForm() {
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nama Atlet</label>
             <input 
               required
+              list="athlete-list"
               className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-sm outline-none focus:border-brand-blue"
               value={form.athleteName}
-              onChange={e => setForm({...form, athleteName: e.target.value})}
+              onChange={e => handleNameChange(e.target.value)}
               placeholder="Nama Lengkap"
             />
+            <datalist id="athlete-list">
+              {athletes.map((a, i) => (
+                <option key={a.id || `athlete-${i}`} value={a.fullName} />
+              ))}
+            </datalist>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gender</label>
+            <select 
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-sm outline-none focus:border-brand-blue"
+              value={form.gender}
+              onChange={e => setForm({...form, gender: e.target.value})}
+            >
+              <option value="Male">Laki-laki</option>
+              <option value="Female">Perempuan</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kelompok Umur (KU)</label>
+            <select 
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-sm outline-none focus:border-brand-blue"
+              value={form.ku}
+              onChange={e => setForm({...form, ku: e.target.value})}
+            >
+              <option value="6">KU-6 kebawah</option>
+              <option value="8">KU-7 s/d 8</option>
+              <option value="10">KU-9 s/d 10</option>
+              <option value="12">KU-11 s/d 12</option>
+              <option value="14">KU-13 s/d 14</option>
+              <option value="16">KU-15 s/d 16</option>
+              <option value="Senior">KU-17 keatas</option>
+            </select>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nomor Perlombaan</label>

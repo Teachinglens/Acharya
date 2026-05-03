@@ -10,7 +10,8 @@ import Gallery from './components/Gallery';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Image as ImageIcon, Newspaper, ExternalLink, ChevronRight, Trophy } from 'lucide-react';
 import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from './lib/firebase';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { db, auth } from './lib/firebase';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -19,6 +20,21 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [filterStroke, setFilterStroke] = useState<string>('All');
   const [filterKU, setFilterKU] = useState<string>('All');
+  const [user, setUser] = useState<User | null>(null);
+
+  const ADMIN_EMAIL = "mahardikasandy1992@gmail.com";
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  const handleLogout = () => signOut(auth);
 
   const GFORM_URL = "https://forms.gle/YiXFCbfaTo5bWmxc8";
 
@@ -67,13 +83,20 @@ export default function App() {
   useEffect(() => {
     loadData();
 
+    const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+
     // Listen to Competitions for Sidebar
     const q = query(collection(db, 'competitions'), orderBy('date', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeComps = onSnapshot(q, (snapshot) => {
       setCompetitions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Competition)));
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      unsubscribeComps();
+    };
   }, []);
 
   const upcomingMeets = competitions
@@ -107,7 +130,7 @@ export default function App() {
         </div>
         
         <nav className="flex gap-10">
-          {['Dashboard', 'Schedules', 'Best Time', 'Gallery', 'News'].map((item) => (
+          {['Dashboard', 'Event', 'Best Time', 'Gallery', 'News'].map((item) => (
             <button 
               key={item} 
               onClick={() => setActiveTab(item)}
@@ -119,25 +142,50 @@ export default function App() {
           ))}
         </nav>
         
-        {activeTab !== 'Gallery' && (
-          <button 
-            onClick={loadData}
-            disabled={loading}
-            className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-full border border-green-100 shadow-sm hover:bg-green-100 transition-colors disabled:opacity-50 group"
-          >
-            <div className="relative flex h-2 w-2">
-              <span className={`${loading ? 'animate-spin' : 'animate-ping'} absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75`}></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+        <div className="flex items-center gap-4">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden md:block">
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Authenticated</div>
+                <div className="text-[10px] font-bold text-brand-blue truncate max-w-[120px]">{user.displayName || user.email}</div>
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="bg-slate-100 text-slate-500 hover:text-red-500 p-2 rounded-lg transition-colors border border-slate-200"
+                title="Logout"
+              >
+                <ExternalLink size={14} />
+              </button>
             </div>
-            <span className="text-[10px] font-black text-green-700 tracking-widest uppercase">
-              {loading ? 'Synchronizing...' : 'Live Data Feed'}
-            </span>
-          </button>
-        )}
+          ) : (
+            <button 
+              onClick={handleLogin}
+              className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-blue transition-all border border-slate-200 px-4 py-2 rounded-lg"
+            >
+              Admin Login
+            </button>
+          )}
+
+          {activeTab !== 'Gallery' && (
+            <button 
+              onClick={loadData}
+              disabled={loading}
+              className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-full border border-green-100 shadow-sm hover:bg-green-100 transition-colors disabled:opacity-50 group"
+            >
+              <div className="relative flex h-2 w-2">
+                <span className={`${loading ? 'animate-spin' : 'animate-ping'} absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75`}></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </div>
+              <span className="text-[10px] font-black text-green-700 tracking-widest uppercase">
+                {loading ? 'Synchronizing...' : 'Live Data Feed'}
+              </span>
+            </button>
+          )}
+        </div>
       </header>
 
       <aside className="sidebar">
-        {activeTab === 'Schedules' ? (
+        {activeTab === 'Event' ? (
           <section className="flex flex-col gap-6">
             <div className="flex flex-col gap-4">
               <h3 className="text-[11px] uppercase font-black tracking-[0.2em] text-slate-400 px-2">Filter Gaya</h3>
@@ -188,7 +236,7 @@ export default function App() {
               upcomingMeets.map((meet, i) => (
                 <div 
                   key={meet.id || i} 
-                  onClick={() => setActiveTab('Schedules')}
+                  onClick={() => setActiveTab('Event')}
                   className="group cursor-pointer"
                 >
                   <div className="border-l-[3px] border-brand-blue pl-4 pr-2 py-2 group-hover:bg-slate-50 transition-colors rounded-r-lg">
@@ -204,14 +252,14 @@ export default function App() {
             )}
           </div>
           <button 
-            onClick={() => setActiveTab('Schedules')}
+            onClick={() => setActiveTab('Event')}
             className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400 hover:text-brand-blue transition-colors uppercase tracking-widest"
           >
             View All Meets <ChevronRight className="w-3 h-3" />
           </button>
         </section>
 
-        {activeTab !== 'Schedules' && (
+        {activeTab !== 'Event' && (
           <section className="mt-auto">
             <h3 className="text-[11px] uppercase font-black tracking-[0.2em] text-slate-400 mb-4 px-2">Gallery Preview</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -234,7 +282,7 @@ export default function App() {
 
       <main className={`content-area transition-colors duration-500 ${
         activeTab === 'Dashboard' ? 'bg-brand-zinc' : 
-        activeTab === 'Schedules' ? 'bg-slate-50' :
+        activeTab === 'Event' ? 'bg-slate-50' :
         activeTab === 'Best Time' ? 'bg-amber-50/30' : 'bg-brand-zinc'
       }`}>
         <AnimatePresence mode="wait">
@@ -338,7 +386,7 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
-          ) : activeTab === 'Schedules' ? (
+          ) : activeTab === 'Event' ? (
             <motion.div 
               key="schedules"
               initial={{ opacity: 0, y: 10 }}
@@ -349,6 +397,7 @@ export default function App() {
                 athletes={athletes} 
                 filterStroke={filterStroke}
                 filterKU={filterKU}
+                isAdmin={isAdmin}
               />
             </motion.div>
           ) : activeTab === 'Best Time' ? (
@@ -359,7 +408,11 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col gap-6"
             >
-              <BestTimeDashboard />
+              <div className="flex flex-col lg:flex-row gap-10">
+                <div className="w-full">
+                  <BestTimeDashboard competitions={competitions} athletes={athletes} isAdmin={isAdmin} />
+                </div>
+              </div>
             </motion.div>
           ) : activeTab === 'Gallery' ? (
             <motion.div 
@@ -368,7 +421,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              <Gallery />
+              <Gallery isAdmin={isAdmin} />
             </motion.div>
           ) : (
             <div className="flex items-center justify-center h-64 text-slate-300 uppercase font-black tracking-widest">

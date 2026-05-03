@@ -1,54 +1,161 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { CompetitionResult, SWIMMING_EVENTS } from '../types';
-import { Trophy, Timer, Search } from 'lucide-react';
+import { CompetitionResult, SWIMMING_EVENTS, Competition, AthleteData } from '../types';
+import { Trophy, Timer, Search, Trash2 } from 'lucide-react';
 
-export default function BestTimeDashboard() {
-  const [results, setResults] = useState<CompetitionResult[]>([]);
+interface Props {
+  competitions?: Competition[];
+  athletes?: AthleteData[];
+  isAdmin?: boolean;
+}
+
+export default function BestTimeDashboard({ competitions = [], athletes = [], isAdmin = false }: Props) {
+  const [results, setResults] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(SWIMMING_EVENTS[2]); // Default to 25M gaya bebas
+  const [genderFilter, setGenderFilter] = useState<string>('All');
+  const [kuFilter, setKuFilter] = useState<string>('All');
+
+  const compareTimes = (timeA: string, timeB: string) => {
+    if (!timeA || !timeB) return 0;
+    const toMs = (timeStr: string) => {
+      try {
+        const parts = timeStr.split(':');
+        let mins = 0;
+        let secsWithMs = '';
+        
+        if (parts.length > 1) {
+          mins = parseInt(parts[0]) || 0;
+          secsWithMs = parts[1];
+        } else {
+          secsWithMs = parts[0];
+        }
+
+        const secsParts = secsWithMs.split('.');
+        const secs = parseInt(secsParts[0]) || 0;
+        const ms = parseInt(secsParts[1]) || 0;
+        
+        return (mins * 60 * 1000) + (secs * 1000) + (ms * 10);
+      } catch (e) {
+        return 9999999; // Fallback for invalid formats
+      }
+    };
+    return toMs(timeA) - toMs(timeB);
+  };
 
   useEffect(() => {
-    // Only fetch entries that have a time recorded
-    const q = query(collection(db, 'competition_entries'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(d => d.time && d.time !== '');
-      setResults(data);
+    const qEntries = query(collection(db, 'competition_entries'));
+
+    const enrichData = (item: any, source: 'competition_entries') => {
+      const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === item.athleteName?.trim().toLowerCase());
+      
+      let gender = item.gender;
+      let ku = item.ku;
+
+      if (athlete) {
+        if (!gender) {
+          const g = athlete.gender?.trim().toLowerCase();
+          gender = (g === 'laki-laki' || g === 'l' || g === 'male') ? 'Male' : 'Female';
+        }
+        if (!ku && athlete.birthDate) {
+          const yearParts = athlete.birthDate.split('/');
+          const birthYear = parseInt(yearParts[yearParts.length - 1] || '0');
+          const age = 2026 - birthYear;
+          if (age <= 6) ku = '6';
+          else if (age <= 8) ku = '8';
+          else if (age <= 10) ku = '10';
+          else if (age <= 12) ku = '12';
+          else if (age <= 14) ku = '14';
+          else if (age <= 16) ku = '16';
+          else ku = 'Senior';
+        }
+      }
+
+      return { ...item, gender: gender || 'Male', ku: ku || '10', source };
+    };
+
+    const combineData = (entries: any[]) => {
+      const entriesResults = entries
+        .filter(d => d.time && d.time.trim() !== '')
+        .map(d => {
+          let compName = d.competitionName;
+          let compDate = d.date;
+
+          if ((!compName || compName === 'Competition') && d.competitionId && competitions.length > 0) {
+            const match = competitions.find(c => c.id === d.competitionId);
+            if (match) {
+              compName = match.name;
+              compDate = match.date;
+            }
+          }
+
+          return enrichData({
+            id: d.id,
+            athleteName: d.athleteName,
+            eventName: d.eventName,
+            time: d.time.trim(),
+            competitionName: compName || 'Competition',
+            date: compDate || 'No Date',
+            gender: d.gender,
+            ku: d.ku
+          }, 'competition_entries');
+        });
+
+      return entriesResults;
+    };
+
+    const unsubscribeEntries = onSnapshot(qEntries, (snapshot) => {
+      const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setResults(combineData(entries));
+    }, (error) => {
+      console.error('Entries listener error:', error);
     });
-    return unsubscribe;
-  }, []);
+
+    return () => {
+      unsubscribeEntries();
+    };
+  }, [competitions, athletes]); // Re-run when dependencies change to re-map names/metadata
+
+  const deleteRecord = async (id: string, source: string) => {
+    if (!window.confirm('Hapus catatan waktu ini?')) return;
+    try {
+      await deleteDoc(doc(db, source, id));
+    } catch (err) {
+      console.error('Delete record error:', err);
+      alert('Gagal menghapus catatan');
+    }
+  };
 
   // Filter to get only the best time for each athlete in the selected event
   const bestTimes = results
     .filter(r => r.eventName === selectedEvent)
-    .filter(r => r.athleteName.toLowerCase().includes(searchTerm.toLowerCase()))
-    .reduce((acc: CompetitionResult[], current) => {
-      const existing = acc.find(item => item.athleteName === current.athleteName);
+    .filter(r => r.athleteName?.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(r => genderFilter === 'All' || r.gender === genderFilter)
+    .filter(r => kuFilter === 'All' || r.ku === kuFilter)
+    .reduce((acc: any[], current) => {
+      const existing = acc.find(item => item.athleteName.trim().toLowerCase() === current.athleteName.trim().toLowerCase());
       if (!existing) {
-        acc.push(current);
+        acc.push({ ...current });
       } else {
-        // Simple comparison: usually lower time is better, but this handles simple strings
-        // In real app, you'd convert to milliseconds for accurate numeric comparison
-        if (current.time < existing.time) { 
+        // Compare times to keep the best one
+        if (compareTimes(current.time, existing.time) < 0) {
           const idx = acc.indexOf(existing);
-          acc[idx] = current;
+          acc[idx] = { ...current };
         }
       }
       return acc;
     }, [])
-    .sort((a, b) => a.time.localeCompare(b.time));
+    .sort((a, b) => compareTimes(a.time, b.time));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 relative">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input 
             type="text"
-            placeholder="Cari nama atlet..."
+            placeholder="Nama..."
             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-medium"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
@@ -60,6 +167,29 @@ export default function BestTimeDashboard() {
           onChange={e => setSelectedEvent(e.target.value)}
         >
           {SWIMMING_EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+        </select>
+        <select 
+          className="p-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-brand-blue outline-none focus:ring-2 focus:ring-brand-blue/20"
+          value={genderFilter}
+          onChange={e => setGenderFilter(e.target.value)}
+        >
+          <option value="All">Semua Gender</option>
+          <option value="Male">Laki-laki</option>
+          <option value="Female">Perempuan</option>
+        </select>
+        <select 
+          className="p-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-brand-blue outline-none focus:ring-2 focus:ring-brand-blue/20"
+          value={kuFilter}
+          onChange={e => setKuFilter(e.target.value)}
+        >
+          <option value="All">Semua KU</option>
+          <option value="6">KU-6 kebawah</option>
+          <option value="8">KU-7 s/d 8</option>
+          <option value="10">KU-9 s/d 10</option>
+          <option value="12">KU-11 s/d 12</option>
+          <option value="14">KU-13 s/d 14</option>
+          <option value="16">KU-15 s/d 16</option>
+          <option value="Senior">KU-17 keatas</option>
         </select>
       </div>
 
@@ -103,9 +233,18 @@ export default function BestTimeDashboard() {
                     </div>
                   </td>
                   <td className="py-6 px-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-black text-slate-800 group-hover:text-brand-blue transition-colors uppercase tracking-tight">
+                    <div className="flex flex-col relative group/row">
+                      <span className="text-sm font-black text-slate-800 group-hover:text-brand-blue transition-colors uppercase tracking-tight flex items-center gap-2">
                         {res.athleteName}
+                        {isAdmin && (
+                          <button 
+                            onClick={() => deleteRecord(res.id, res.source)}
+                            className="opacity-0 group-hover/row:opacity-100 text-slate-200 hover:text-red-500 transition-all p-1"
+                            title="Hapus Record"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </span>
                       <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Athlete ID: {res.id?.slice(-6).toUpperCase()}</span>
                     </div>

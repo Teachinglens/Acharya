@@ -5,7 +5,11 @@ import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, delete
 import { db } from '../lib/firebase';
 import { Album, Photo } from '../types';
 
-export default function Gallery() {
+interface Props {
+  isAdmin?: boolean;
+}
+
+export default function Gallery({ isAdmin = false }: Props) {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,20 +111,22 @@ export default function Gallery() {
             Koleksi dokumentasi kegiatan Acharya Swimming Club, mulai dari sesi latihan teknis harian hingga semarak kejuaraan antar atlet.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => setIsAddingAlbum(true)}
-            className="flex items-center gap-2 bg-white text-brand-blue border border-brand-blue/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-blue hover:text-white transition-all shadow-sm"
-          >
-            <Plus size={14} /> Album Baru
-          </button>
-          <button 
-            onClick={() => setIsAddingPhoto(true)}
-            className="flex items-center gap-2 bg-brand-blue text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-navy transition-all shadow-md active:scale-95"
-          >
-            <Upload size={14} /> Unggah Foto
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsAddingAlbum(true)}
+              className="flex items-center gap-2 bg-white text-brand-blue border border-brand-blue/20 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-blue hover:text-white transition-all shadow-sm"
+            >
+              <Plus size={14} /> Album Baru
+            </button>
+            <button 
+              onClick={() => setIsAddingPhoto(true)}
+              className="flex items-center gap-2 bg-brand-blue text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-navy transition-all shadow-md active:scale-95"
+            >
+              <Upload size={14} /> Unggah Foto
+            </button>
+          </div>
+        )}
       </header>
 
       <AnimatePresence>
@@ -283,12 +289,14 @@ export default function Gallery() {
               <div>
                 <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-800 mb-1 flex items-center gap-3">
                   {album.title}
-                  <button 
-                    onClick={() => deleteAlbum(album.id!)}
-                    className="text-slate-200 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => deleteAlbum(album.id!)}
+                      className="text-slate-200 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </h2>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{album.description}</p>
               </div>
@@ -304,15 +312,17 @@ export default function Gallery() {
                 >
                   <div className="aspect-[4/3] relative overflow-hidden">
                     <div className="absolute inset-0 bg-brand-blue opacity-0 group-hover:opacity-10 transition-opacity z-10"></div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePhoto(photo.id!);
-                      }}
-                      className="absolute top-4 right-4 z-20 bg-white/90 p-2 rounded-xl text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-lg"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {isAdmin && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePhoto(photo.id!);
+                        }}
+                        className="absolute top-4 right-4 z-20 bg-white/90 p-2 rounded-xl text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-lg"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                     <img 
                       src={photo.url} 
                       alt={photo.title || album.title} 
@@ -328,7 +338,7 @@ export default function Gallery() {
                   )}
                 </motion.div>
               ))}
-              {albumPhotos.length === 0 && (
+              {albumPhotos.length === 0 && isAdmin && (
                 <div 
                   onClick={() => {
                     setSelectedAlbumId(album.id!);
@@ -352,12 +362,14 @@ export default function Gallery() {
           </div>
           <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Belum ada Album</h3>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Mulai unggah dokumentasi kegiatan Acharya Swimming Club di sini</p>
-          <button 
-            onClick={() => setIsAddingAlbum(true)}
-            className="bg-brand-blue text-white px-10 py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-brand-navy transition-all active:scale-95 shadow-lg"
-          >
-            Buat Album Pertama Anda
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={() => setIsAddingAlbum(true)}
+              className="bg-brand-blue text-white px-10 py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-brand-navy transition-all active:scale-95 shadow-lg"
+            >
+              Buat Album Pertama Anda
+            </button>
+          )}
         </section>
       )}
 
@@ -369,14 +381,19 @@ export default function Gallery() {
         <div className="relative z-10">
           <h3 className="text-3xl font-serif italic text-white mb-4">Ingin Menambahkan Dokumentasi?</h3>
           <p className="text-white/60 text-sm font-medium mb-8 max-w-xl mx-auto">
-            Gunakan fitur di atas untuk mengelola album foto klub. Pastikan URL gambar yang digunakan adalah tautan langsung yang valid.
+            {isAdmin 
+              ? "Gunakan fitur di atas untuk mengelola album foto klub. Pastikan URL gambar yang digunakan adalah tautan langsung yang valid."
+              : "Dokumentasi ini dikelola langsung oleh administrator klub untuk memastikan kualitas konten."
+            }
           </p>
-          <button 
-            onClick={() => setShowGuide(true)}
-            className="bg-white text-brand-blue px-10 py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-slate-50 transition-all active:scale-95 shadow-xl"
-          >
-            Panduan Pengelolaan
-          </button>
+          {isAdmin && (
+            <button 
+              onClick={() => setShowGuide(true)}
+              className="bg-white text-brand-blue px-10 py-4 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] hover:bg-slate-50 transition-all active:scale-95 shadow-xl"
+            >
+              Panduan Pengelolaan
+            </button>
+          )}
         </div>
       </section>
     </motion.div>

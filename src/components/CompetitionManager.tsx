@@ -9,9 +9,10 @@ interface Props {
   athletes: AthleteData[];
   filterStroke?: string;
   filterKU?: string;
+  isAdmin?: boolean;
 }
 
-export default function CompetitionManager({ athletes, filterStroke = 'All', filterKU = 'All' }: Props) {
+export default function CompetitionManager({ athletes, filterStroke = 'All', filterKU = 'All', isAdmin = false }: Props) {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [selectedComp, setSelectedComp] = useState<Competition | null>(null);
   const [entries, setEntries] = useState<CompetitionEntry[]>([]);
@@ -67,18 +68,38 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
     
     setLoading(true);
     try {
-      const promises = selectedAthletes.flatMap(athleteName => 
-        selectedEvents.map(eventName => 
+      const promises = selectedAthletes.flatMap(athleteName => {
+        const athlete = athletes.find(a => a.fullName === athleteName);
+        let gender = athlete?.gender || 'Male';
+        let ku = '10';
+
+        if (athlete?.birthDate) {
+          const birthYear = parseInt(athlete.birthDate.split('/').pop() || '0');
+          const currentYear = new Date().getFullYear();
+          const age = currentYear - birthYear;
+          if (age <= 6) ku = '6';
+          else if (age <= 8) ku = '8';
+          else if (age <= 10) ku = '10';
+          else if (age <= 12) ku = '12';
+          else if (age <= 14) ku = '14';
+          else if (age <= 16) ku = '16';
+          else ku = 'Senior';
+        }
+
+        return selectedEvents.map(eventName => 
           addDoc(collection(db, 'competition_entries'), {
             competitionId: selectedComp.id,
             competitionName: selectedComp.name,
             date: selectedComp.date,
             athleteName,
+            athleteId: athlete?.id || '',
+            gender,
+            ku,
             eventName,
             status: 'registered'
           })
         )
-      );
+      });
       
       await Promise.all(promises);
       setIsAddingEntry(false);
@@ -167,12 +188,14 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
           >
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Daftar Perlombaan</h2>
-              <button 
-                onClick={() => setIsAddingComp(true)}
-                className="btn-primary py-2 px-4 flex items-center gap-2"
-              >
-                <Plus size={16} /> Tambah Perlombaan
-              </button>
+              {isAdmin && (
+                <button 
+                  onClick={() => setIsAddingComp(true)}
+                  className="btn-primary py-2 px-4 flex items-center gap-2"
+                >
+                  <Plus size={16} /> Tambah Perlombaan
+                </button>
+              )}
             </div>
 
             {isAddingComp && (
@@ -221,15 +244,17 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                         }`}>
                           {comp.status}
                         </span>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteCompetition(comp.id!);
-                          }}
-                          className="p-1.5 rounded-full bg-red-50 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {isAdmin && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteCompetition(comp.id!);
+                            }}
+                            className="p-1.5 rounded-full bg-red-50 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                     </div>
                     <h3 className="font-black text-slate-800 text-lg group-hover:text-brand-blue transition-colors uppercase tracking-tight leading-tight mb-2">{comp.name}</h3>
@@ -263,19 +288,23 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
               </button>
               <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">{selectedComp.name}</h2>
               <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => deleteCompetition(selectedComp.id!)}
-                  className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                  title="Hapus Kompetisi"
-                >
-                  <Trash2 size={16} />
-                </button>
-                <button 
-                  onClick={() => setIsAddingEntry(true)}
-                  className="btn-primary py-2 px-4 flex items-center gap-2"
-                >
-                  <Plus size={16} /> Tambah Atlet & Nomor
-                </button>
+                {isAdmin && (
+                  <>
+                    <button 
+                      onClick={() => deleteCompetition(selectedComp.id!)}
+                      className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                      title="Hapus Kompetisi"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setIsAddingEntry(true)}
+                      className="btn-primary py-2 px-4 flex items-center gap-2"
+                    >
+                      <Plus size={16} /> Tambah Atlet & Nomor
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -379,7 +408,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                     <th className="py-4 px-6 text-[10px] uppercase font-black tracking-widest text-slate-400">Athlete</th>
                     <th className="py-4 px-6 text-[10px] uppercase font-black tracking-widest text-slate-400">Event</th>
                     <th className="py-4 px-6 text-[10px] uppercase font-black tracking-widest text-slate-400">Record Time</th>
-                    <th className="py-4 px-6 text-[10px] uppercase font-black tracking-widest text-slate-400 text-right">Action</th>
+                    {isAdmin && <th className="py-4 px-6 text-[10px] uppercase font-black tracking-widest text-slate-400 text-right">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -417,21 +446,24 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                             className={`w-24 p-2 text-xs font-black tabular-nums border rounded outline-none shadow-sm transition-all ${
                               entry.time ? 'border-green-500 bg-white ring-2 ring-green-100 ring-offset-1' : 'border-slate-200 focus:border-brand-blue'
                             }`}
+                            readOnly={!isAdmin}
                           />
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-right">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteEntry(entry.id!);
-                          }}
-                          className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-all active:scale-90 shadow-sm hover:shadow-md"
-                          title="Hapus Entri"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
+                      {isAdmin && (
+                        <td className="py-4 px-6 text-right">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteEntry(entry.id!);
+                            }}
+                            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-all active:scale-90 shadow-sm hover:shadow-md"
+                            title="Hapus Entri"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {entries.length === 0 && (
