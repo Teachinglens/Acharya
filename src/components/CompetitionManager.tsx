@@ -328,7 +328,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[200px] overflow-y-auto p-2 bg-slate-50/50 rounded-lg">
                       {athletes.filter(a => a.fullName.toLowerCase().includes(athleteSearch.toLowerCase())).map(a => (
-                        <label key={a.fullName} className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-all ${
+                        <label key={a.id} className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-all ${
                           selectedAthletes.includes(a.fullName) ? 'bg-brand-blue/10 border-brand-blue' : 'bg-white border-slate-100 hover:border-slate-300'
                         }`}>
                           <input 

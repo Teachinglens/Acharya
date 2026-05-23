@@ -23,14 +23,24 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
 
   const ADMIN_EMAIL = "mahardikasandy1992@gmail.com";
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    // Force select account to avoid silent failures in some iframe contexts
+    provider.setCustomParameters({ prompt: 'select_account' });
+    
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
+      if (error.code === 'auth/popup-blocked') {
+        alert('Popup login diblokir oleh browser. Harap ijinkan popup untuk situs ini.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert('Domain ini belum diizinkan di Firebase Console. Harap tambahkan domain .run.app ke Authorized Domains.');
+      } else {
+        alert(`Login gagal: ${error.message}`);
+      }
     }
   };
 
@@ -74,10 +84,20 @@ export default function App() {
         else if (age <= 16) acc.ku16++;
       }
     }
+
+    // Active / Off calculation based on trainingSchedule
+    const schedule = a.trainingSchedule?.trim().toLowerCase() || '';
+    if (schedule === 'rest' || schedule.includes('rest') || schedule === '') {
+      acc.off++;
+    } else {
+      acc.active++;
+    }
+
     return acc;
   }, {
     total: 0, male: 0, female: 0,
-    ku6: 0, ku8: 0, ku10: 0, ku12: 0, ku14: 0, ku16: 0
+    ku6: 0, ku8: 0, ku10: 0, ku12: 0, ku14: 0, ku16: 0,
+    active: 0, off: 0
   });
 
   useEffect(() => {
@@ -115,17 +135,20 @@ export default function App() {
     <div className={`main-grid ${isSidebarHidden ? 'sidebar-hidden' : ''}`}>
       <header className="header">
         <div className="flex items-center gap-4">
-          <img 
-            src="/logo.png" 
-            alt="Acharya Swimming Club Logo" 
-            className="w-14 h-14 object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://placehold.co/100x100?text=ASC";
-            }}
-          />
+          <div className="relative w-14 h-14 flex items-center justify-center bg-brand-blue rounded-2xl overflow-hidden shadow-lg border-2 border-white/20 group">
+            <img 
+              src="/logo.png" 
+              alt="Acharya Swimming Club Logo" 
+              className="w-full h-full object-contain absolute inset-0 z-10"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <Trophy className="text-white w-7 h-7 animate-pulse opacity-50" />
+          </div>
           <div>
-            <div className="font-extrabold text-xl tracking-tighter leading-none">ACHARYA</div>
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Swimming Club</div>
+            <div className="font-extrabold text-xl tracking-tighter leading-none text-slate-800">ACHARYA</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-blue/60">Swimming Club</div>
           </div>
         </div>
         
@@ -295,7 +318,7 @@ export default function App() {
               className="flex flex-col gap-6"
             >
               {/* Stats at the top since sidebar is hidden */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div className="stat-card bg-brand-blue text-white shadow-lg overflow-hidden relative">
                    <div className="absolute top-0 right-0 w-8 h-8 bg-white/10 rounded-bl-full"></div>
                    <div className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Total Atlet</div>
@@ -308,6 +331,14 @@ export default function App() {
                 <div className="stat-card bg-pink-50 text-pink-700 shadow-sm">
                    <div className="text-[10px] font-black text-pink-300 uppercase tracking-widest mb-1">Perempuan</div>
                    <div className="text-3xl font-black">{stats.female}</div>
+                </div>
+                <div className="stat-card bg-green-50 text-green-700 shadow-sm border border-green-100">
+                   <div className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-1">Active</div>
+                   <div className="text-3xl font-black">{stats.active}</div>
+                </div>
+                <div className="stat-card bg-orange-50 text-orange-700 shadow-sm border border-orange-100">
+                   <div className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1">Off</div>
+                   <div className="text-3xl font-black">{stats.off}</div>
                 </div>
                 <div className="stat-card bg-emerald-50 text-emerald-700 shadow-sm">
                    <div className="text-[10px] font-black text-emerald-300 uppercase tracking-widest mb-1">KU 6-10</div>

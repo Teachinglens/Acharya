@@ -80,8 +80,8 @@ export default function ResultInputForm({ athletes = [] }: Props) {
               placeholder="Nama Lengkap"
             />
             <datalist id="athlete-list">
-              {athletes.map((a, i) => (
-                <option key={a.id || `athlete-${i}`} value={a.fullName} />
+              {athletes.map((a) => (
+                <option key={a.id} value={a.fullName} />
               ))}
             </datalist>
           </div>

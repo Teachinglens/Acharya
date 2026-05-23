@@ -11,6 +11,8 @@ interface StatsData {
   ku12: number;
   ku14: number;
   ku16: number;
+  active: number;
+  off: number;
 }
 
 interface Props {
@@ -22,6 +24,8 @@ export default function StatsDashboard({ stats }: Props) {
     { label: 'Total Atlet', value: stats.total, color: 'text-white', bg: 'bg-brand-blue' },
     { label: 'Laki-laki', value: stats.male, color: 'text-blue-700', bg: 'bg-blue-50' },
     { label: 'Perempuan', value: stats.female, color: 'text-pink-700', bg: 'bg-pink-50' },
+    { label: 'Active', value: stats.active, color: 'text-green-700', bg: 'bg-green-50 border border-green-100' },
+    { label: 'Off', value: stats.off, color: 'text-orange-700', bg: 'bg-orange-50 border border-orange-100' },
     { label: 'KU 6', value: stats.ku6, color: 'text-emerald-700', bg: 'bg-emerald-50' },
     { label: 'KU 8', value: stats.ku8, color: 'text-emerald-700', bg: 'bg-emerald-100' },
     { label: 'KU 10', value: stats.ku10, color: 'text-teal-700', bg: 'bg-teal-50' },

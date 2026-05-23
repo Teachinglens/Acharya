@@ -13,7 +13,8 @@ export async function fetchAthletesFromSheet(): Promise<AthleteData[]> {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          const athletes: AthleteData[] = results.data.map((row: any) => ({
+          const athletes: AthleteData[] = results.data.map((row: any, i: number) => ({
+            id: `ath-${i}-${row['Nama Lengkap']?.replace(/\s+/g, '-').toLowerCase()}`,
             timestamp: row['Timestamp'],
             fullName: row['Nama Lengkap'],
             gender: row['Jenis Kelamin'] || row['Gender'],
