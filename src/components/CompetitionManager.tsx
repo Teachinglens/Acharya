@@ -22,6 +22,11 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
   const [selectedAthletes, setSelectedAthletes] = useState<string[]>([]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [athleteSearch, setAthleteSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    type: 'competition' | 'entry';
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'competitions'), orderBy('createdAt', 'desc'));
@@ -135,9 +140,15 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
     }
   };
 
-  const deleteCompetition = async (compId: string) => {
-    if (!window.confirm('Hapus kompetisi ini dan semua entri di dalamnya?')) return;
-    
+  const deleteCompetition = (id: string, name: string) => {
+    setConfirmDelete({
+      id,
+      type: 'competition',
+      title: name
+    });
+  };
+
+  const executeDeleteCompetition = async (compId: string) => {
     setLoading(true);
     try {
       // 1. Delete all entries associated with this competition (using filtered query)
@@ -161,8 +172,15 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
     }
   };
 
-  const deleteEntry = async (entryId: string) => {
-    if (!window.confirm('Hapus entri atlet ini?')) return;
+  const deleteEntry = (id: string, name: string) => {
+    setConfirmDelete({
+      id,
+      type: 'entry',
+      title: name
+    });
+  };
+
+  const executeDeleteEntry = async (entryId: string) => {
     try {
       await deleteDoc(doc(db, 'competition_entries', entryId));
     } catch (err) {
@@ -248,7 +266,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteCompetition(comp.id!);
+                              deleteCompetition(comp.id!, comp.name);
                             }}
                             className="p-1.5 rounded-full bg-red-50 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
                           >
@@ -291,7 +309,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                 {isAdmin && (
                   <>
                     <button 
-                      onClick={() => deleteCompetition(selectedComp.id!)}
+                      onClick={() => deleteCompetition(selectedComp.id!, selectedComp.name)}
                       className="p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
                       title="Hapus Kompetisi"
                     >
@@ -455,7 +473,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteEntry(entry.id!);
+                              deleteEntry(entry.id!, `${entry.athleteName} - ${entry.eventName}`);
                             }}
                             className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-red-500 transition-all active:scale-90 shadow-sm hover:shadow-md"
                             title="Hapus Entri"
@@ -477,6 +495,47 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
           </motion.div>
         )}
       </AnimatePresence>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-8 pb-4 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 text-red-500">
+                <Trash2 size={28} />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Konfirmasi Hapus</h3>
+              <p className="text-slate-500 text-xs font-semibold mt-2 leading-relaxed">
+                Apakah Anda yakin ingin menghapus {confirmDelete.type === 'competition' ? 'kompetisi' : 'entri'}{' '}
+                <strong className="text-slate-800">"{confirmDelete.title}"</strong>?
+                {confirmDelete.type === 'competition' && ' Semua entri atlet di dalam kompetisi ini juga akan dihapus permanen.'}
+              </p>
+            </div>
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 justify-end">
+              <button 
+                type="button" 
+                onClick={() => setConfirmDelete(null)} 
+                className="px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={async () => {
+                  const { id, type } = confirmDelete;
+                  setConfirmDelete(null);
+                  if (type === 'competition') {
+                    await executeDeleteCompetition(id);
+                  } else {
+                    await executeDeleteEntry(id);
+                  }
+                }}
+                className="bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-650 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

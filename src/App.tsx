@@ -37,7 +37,7 @@ export default function App() {
       if (error.code === 'auth/popup-blocked') {
         alert('Popup login diblokir oleh browser. Harap ijinkan popup untuk situs ini.');
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert('Domain ini belum diizinkan di Firebase Console. Harap tambahkan domain .run.app ke Authorized Domains.');
+        alert(`Domain "${window.location.hostname}" belum diizinkan untuk Google Sign-In di Firebase Console.\n\nHarap buka Firebase Console Anda, pilih menu Authentication -> Settings -> Authorized Domains, lalu tambahkan "${window.location.hostname}" agar bisa menggunakan fitur Login.`);
       } else {
         alert(`Login gagal: ${error.message}`);
       }

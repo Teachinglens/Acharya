@@ -16,6 +16,13 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
   const [selectedEvent, setSelectedEvent] = useState(SWIMMING_EVENTS[2]); // Default to 25M gaya bebas
   const [genderFilter, setGenderFilter] = useState<string>('All');
   const [kuFilter, setKuFilter] = useState<string>('All');
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    source: string;
+    athleteName: string;
+    eventName: string;
+    time: string;
+  } | null>(null);
 
   const compareTimes = (timeA: string, timeB: string) => {
     if (!timeA || !timeB) return 0;
@@ -117,8 +124,11 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
     };
   }, [competitions, athletes]); // Re-run when dependencies change to re-map names/metadata
 
-  const deleteRecord = async (id: string, source: string) => {
-    if (!window.confirm('Hapus catatan waktu ini?')) return;
+  const deleteRecord = (id: string, source: string, athleteName: string, eventName: string, time: string) => {
+    setConfirmDelete({ id, source, athleteName, eventName, time });
+  };
+
+  const executeDeleteRecord = async (id: string, source: string) => {
     try {
       await deleteDoc(doc(db, source, id));
     } catch (err) {
@@ -238,7 +248,7 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
                         {res.athleteName}
                         {isAdmin && (
                           <button 
-                            onClick={() => deleteRecord(res.id, res.source)}
+                            onClick={() => deleteRecord(res.id, res.source, res.athleteName, selectedEvent, res.time)}
                             className="opacity-0 group-hover/row:opacity-100 text-slate-200 hover:text-red-500 transition-all p-1"
                             title="Hapus Record"
                           >
@@ -280,6 +290,41 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
           </table>
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-8 pb-4 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 text-red-500">
+                <Trash2 size={28} />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Konfirmasi Hapus</h3>
+              <p className="text-slate-500 text-xs font-semibold mt-2 leading-relaxed">
+                Apakah Anda yakin ingin menghapus catatan waktu <strong className="text-brand-blue">{confirmDelete.time}</strong> untuk <strong className="text-slate-850">"{confirmDelete.athleteName}"</strong> pada nomor <strong className="text-slate-850">"{confirmDelete.eventName}"</strong>?
+              </p>
+            </div>
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 justify-end">
+              <button 
+                type="button" 
+                onClick={() => setConfirmDelete(null)} 
+                className="px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={async () => {
+                  const { id, source } = confirmDelete;
+                  setConfirmDelete(null);
+                  await executeDeleteRecord(id, source);
+                }}
+                className="bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-650 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -75,6 +75,11 @@ export default function Gallery({ isAdmin = false }: Props) {
   const [showGuide, setShowGuide] = useState(false);
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: string;
+    type: 'album' | 'photo';
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     const albumsQuery = query(collection(db, 'albums'), orderBy('createdAt', 'desc'));
@@ -149,8 +154,15 @@ export default function Gallery({ isAdmin = false }: Props) {
     }
   };
 
-  const deleteAlbum = async (id: string) => {
-    if (!window.confirm('Hapus album ini dan semua foto di dalamnya?')) return;
+  const deleteAlbum = (id: string, title: string) => {
+    setConfirmDelete({
+      id,
+      type: 'album',
+      title
+    });
+  };
+
+  const executeDeleteAlbum = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'albums', id));
       // Delete associated photos
@@ -161,8 +173,15 @@ export default function Gallery({ isAdmin = false }: Props) {
     }
   };
 
-  const deletePhoto = async (id: string) => {
-    if (!window.confirm('Hapus foto ini?')) return;
+  const deletePhoto = (id: string, title?: string) => {
+    setConfirmDelete({
+      id,
+      type: 'photo',
+      title: title || 'Foto'
+    });
+  };
+
+  const executeDeletePhoto = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'photos', id));
     } catch (err) {
@@ -469,6 +488,56 @@ export default function Gallery({ isAdmin = false }: Props) {
             </motion.div>
           </motion.div>
         )}
+
+        {confirmDelete && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-brand-navy/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 pb-4 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4 text-red-500">
+                  <Trash2 size={28} />
+                </div>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Konfirmasi Hapus</h3>
+                <p className="text-slate-500 text-xs font-semibold mt-2 leading-relaxed">
+                  Apakah Anda yakin ingin menghapus {confirmDelete.type === 'album' ? 'album' : 'foto'}{' '}
+                  <strong className="text-slate-800">"{confirmDelete.title}"</strong>?
+                  {confirmDelete.type === 'album' && ' Semua foto di dalam album ini juga akan dihapus permanen.'}
+                </p>
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => setConfirmDelete(null)} 
+                  className="px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-slate-400 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={async () => {
+                    const { id, type } = confirmDelete;
+                    setConfirmDelete(null);
+                    if (type === 'album') {
+                      await executeDeleteAlbum(id);
+                    } else {
+                      await executeDeletePhoto(id);
+                    }
+                  }}
+                  className="bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-650 shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  Ya, Hapus
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {albums.map((album) => {
@@ -481,7 +550,7 @@ export default function Gallery({ isAdmin = false }: Props) {
                   {album.title}
                   {isAdmin && (
                     <button 
-                      onClick={() => deleteAlbum(album.id!)}
+                      onClick={() => deleteAlbum(album.id!, album.title)}
                       className="text-slate-200 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={12} />
@@ -517,7 +586,7 @@ export default function Gallery({ isAdmin = false }: Props) {
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            deletePhoto(photo.id!);
+                            deletePhoto(photo.id!, photo.title);
                           }}
                           className="bg-white/90 p-2 rounded-xl text-red-500 hover:bg-red-500 hover:text-white shadow-lg transition-all"
                           title="Hapus Foto"
