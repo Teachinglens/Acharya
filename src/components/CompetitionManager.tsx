@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, deleteDoc, deleteField, getDocs, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Competition, CompetitionEntry, AthleteData, SWIMMING_EVENTS } from '../types';
+import { getKelompokUmur, normalizeGender, getBirthYear } from '../lib/athleteUtils';
 import { Plus, Trophy, Users, Clock, Trash2, ArrowLeft, Loader2, Save, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -74,29 +75,16 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
     setLoading(true);
     try {
       const promises = selectedAthletes.flatMap(athleteName => {
-        const athlete = athletes.find(a => a.fullName === athleteName);
-        let gender = athlete?.gender || 'Male';
-        let ku = '10';
-
-        if (athlete?.birthDate) {
-          const birthYear = parseInt(athlete.birthDate.split('/').pop() || '0');
-          const currentYear = new Date().getFullYear();
-          const age = currentYear - birthYear;
-          if (age <= 6) ku = '6';
-          else if (age <= 8) ku = '8';
-          else if (age <= 10) ku = '10';
-          else if (age <= 12) ku = '12';
-          else if (age <= 14) ku = '14';
-          else if (age <= 16) ku = '16';
-          else ku = 'Senior';
-        }
+        const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === athleteName.trim().toLowerCase());
+        const gender = normalizeGender(athlete?.gender);
+        const ku = getKelompokUmur(athlete?.birthDate);
 
         return selectedEvents.map(eventName => 
           addDoc(collection(db, 'competition_entries'), {
             competitionId: selectedComp.id,
             competitionName: selectedComp.name,
             date: selectedComp.date,
-            athleteName,
+            athleteName: athlete?.fullName || athleteName,
             athleteId: athlete?.id || '',
             gender,
             ku,
@@ -434,16 +422,10 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                     .filter(entry => {
                       if (filterStroke !== 'All' && !entry.eventName.toLowerCase().includes(filterStroke.toLowerCase())) return false;
                       if (filterKU !== 'All') {
-                        const athlete = athletes.find(a => a.fullName === entry.athleteName);
+                        const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === entry.athleteName?.trim().toLowerCase());
                         if (!athlete || !athlete.birthDate) return false;
-                        const birthYear = parseInt(athlete.birthDate.split('/').pop() || '0');
-                        const age = 2026 - birthYear;
-                        if (filterKU === '6' && age > 6) return false;
-                        if (filterKU === '8' && (age <= 6 || age > 8)) return false;
-                        if (filterKU === '10' && (age <= 8 || age > 10)) return false;
-                        if (filterKU === '12' && (age <= 10 || age > 12)) return false;
-                        if (filterKU === '14' && (age <= 12 || age > 14)) return false;
-                        if (filterKU === '16' && (age <= 14 || age > 16)) return false;
+                        const entryKU = getKelompokUmur(athlete.birthDate);
+                        if (entryKU !== filterKU) return false;
                       }
                       return true;
                     })

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { getKelompokUmur, normalizeGender } from '../lib/athleteUtils';
 import { CompetitionResult, SWIMMING_EVENTS, Competition, AthleteData } from '../types';
 import { Trophy, Timer, Search, Trash2 } from 'lucide-react';
 
@@ -13,7 +14,7 @@ interface Props {
 export default function BestTimeDashboard({ competitions = [], athletes = [], isAdmin = false }: Props) {
   const [results, setResults] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEvent, setSelectedEvent] = useState(SWIMMING_EVENTS[2]); // Default to 25M gaya bebas
+  const [selectedEvent, setSelectedEvent] = useState<string>('All'); // Default to 'All' (Semua Gaya)
   const [genderFilter, setGenderFilter] = useState<string>('All');
   const [kuFilter, setKuFilter] = useState<string>('All');
   const [confirmDelete, setConfirmDelete] = useState<{
@@ -53,37 +54,27 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
 
   useEffect(() => {
     const qEntries = query(collection(db, 'competition_entries'));
+    const qManualResults = query(collection(db, 'competition_results'));
 
-    const enrichData = (item: any, source: 'competition_entries') => {
+    let entriesData: any[] = [];
+    let manualResultsData: any[] = [];
+
+    const enrichData = (item: any, source: 'competition_entries' | 'competition_results') => {
       const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === item.athleteName?.trim().toLowerCase());
       
-      let gender = item.gender;
-      let ku = item.ku;
+      let gender = normalizeGender(item.gender);
+      let ku = item.ku || '10';
 
       if (athlete) {
-        if (!gender) {
-          const g = athlete.gender?.trim().toLowerCase();
-          gender = (g === 'laki-laki' || g === 'l' || g === 'male') ? 'Male' : 'Female';
-        }
-        if (!ku && athlete.birthDate) {
-          const yearParts = athlete.birthDate.split('/');
-          const birthYear = parseInt(yearParts[yearParts.length - 1] || '0');
-          const age = 2026 - birthYear;
-          if (age <= 6) ku = '6';
-          else if (age <= 8) ku = '8';
-          else if (age <= 10) ku = '10';
-          else if (age <= 12) ku = '12';
-          else if (age <= 14) ku = '14';
-          else if (age <= 16) ku = '16';
-          else ku = 'Senior';
-        }
+        gender = normalizeGender(athlete.gender);
+        ku = getKelompokUmur(athlete.birthDate);
       }
 
-      return { ...item, gender: gender || 'Male', ku: ku || '10', source };
+      return { ...item, gender, ku, source };
     };
 
-    const combineData = (entries: any[]) => {
-      const entriesResults = entries
+    const updateCombinedData = () => {
+      const combinedEntries = entriesData
         .filter(d => d.time && d.time.trim() !== '')
         .map(d => {
           let compName = d.competitionName;
@@ -109,18 +100,41 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
           }, 'competition_entries');
         });
 
-      return entriesResults;
+      const combinedManual = manualResultsData
+        .filter(d => d.time && d.time.trim() !== '')
+        .map(d => {
+          return enrichData({
+            id: d.id,
+            athleteName: d.athleteName,
+            eventName: d.eventName,
+            time: d.time.trim(),
+            competitionName: d.competitionName || 'Manual Entry',
+            date: d.date || 'No Date',
+            gender: d.gender,
+            ku: d.ku
+          }, 'competition_results');
+        });
+
+      setResults([...combinedEntries, ...combinedManual]);
     };
 
     const unsubscribeEntries = onSnapshot(qEntries, (snapshot) => {
-      const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setResults(combineData(entries));
+      entriesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombinedData();
     }, (error) => {
       console.error('Entries listener error:', error);
     });
 
+    const unsubscribeManualResults = onSnapshot(qManualResults, (snapshot) => {
+      manualResultsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombinedData();
+    }, (error) => {
+      console.error('Manual results listener error:', error);
+    });
+
     return () => {
       unsubscribeEntries();
+      unsubscribeManualResults();
     };
   }, [competitions, athletes]); // Re-run when dependencies change to re-map names/metadata
 
@@ -137,14 +151,18 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
     }
   };
 
-  // Filter to get only the best time for each athlete in the selected event
+  // Filter to get only the best time for each athlete in the selected event(s)
   const bestTimes = results
-    .filter(r => r.eventName === selectedEvent)
+    .filter(r => selectedEvent === 'All' || r.eventName === selectedEvent)
     .filter(r => r.athleteName?.toLowerCase().includes(searchTerm.toLowerCase()))
     .filter(r => genderFilter === 'All' || r.gender === genderFilter)
     .filter(r => kuFilter === 'All' || r.ku === kuFilter)
     .reduce((acc: any[], current) => {
-      const existing = acc.find(item => item.athleteName.trim().toLowerCase() === current.athleteName.trim().toLowerCase());
+      // Find matching athlete. If filtered by "All", also match by event name.
+      const existing = acc.find(item => 
+        item.athleteName.trim().toLowerCase() === current.athleteName.trim().toLowerCase() &&
+        (selectedEvent !== 'All' || item.eventName === current.eventName)
+      );
       if (!existing) {
         acc.push({ ...current });
       } else {
@@ -176,6 +194,7 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
           value={selectedEvent}
           onChange={e => setSelectedEvent(e.target.value)}
         >
+          <option value="All">Semua Gaya</option>
           {SWIMMING_EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
         </select>
         <select 
@@ -211,7 +230,7 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
             </div>
             <div>
               <h2 className="text-lg font-black uppercase tracking-tighter text-slate-800">Elite Performance</h2>
-              <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Live Leaderboard • {selectedEvent}</p>
+              <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em]">Live Leaderboard • {selectedEvent === 'All' ? 'Semua Gaya' : selectedEvent}</p>
             </div>
           </div>
           <div className="flex flex-col items-end">
@@ -248,7 +267,7 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
                         {res.athleteName}
                         {isAdmin && (
                           <button 
-                            onClick={() => deleteRecord(res.id, res.source, res.athleteName, selectedEvent, res.time)}
+                            onClick={() => deleteRecord(res.id, res.source, res.athleteName, res.eventName, res.time)}
                             className="opacity-0 group-hover/row:opacity-100 text-slate-200 hover:text-red-500 transition-all p-1"
                             title="Hapus Record"
                           >
@@ -269,8 +288,11 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
                   </td>
                   <td className="py-6 px-4">
                     <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter truncate max-w-[150px]">
+                      <span className="text-[10px] font-black text-slate-700 uppercase tracking-tighter truncate max-w-[180px]">
                         {res.competitionName || 'Competition'}
+                      </span>
+                      <span className="text-[9px] font-bold text-brand-blue uppercase tracking-widest mt-0.5">
+                        {res.eventName}
                       </span>
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                         {res.date || 'No Date'}

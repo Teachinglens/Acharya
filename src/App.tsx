@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAthletesFromSheet } from './services/sheetService';
+import { getBirthYear } from './lib/athleteUtils';
 import { AthleteData, Competition } from './types';
 import AthleteTable from './components/AthleteTable';
 import StatsDashboard from './components/StatsDashboard';
@@ -71,8 +72,7 @@ export default function App() {
 
     // KU (Kelompok Umur) based on year difference
     if (a.birthDate) {
-      const parts = a.birthDate.split('/');
-      const year = parts.length === 3 ? parseInt(parts[2]) : null;
+      const year = getBirthYear(a.birthDate);
       if (year && !isNaN(year)) {
         const currentYear = 2026;
         const age = currentYear - year;

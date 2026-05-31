@@ -13,25 +13,29 @@ export async function fetchAthletesFromSheet(): Promise<AthleteData[]> {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          const athletes: AthleteData[] = results.data.map((row: any, i: number) => ({
-            id: `ath-${i}-${row['Nama Lengkap']?.replace(/\s+/g, '-').toLowerCase()}`,
-            timestamp: row['Timestamp'],
-            fullName: row['Nama Lengkap'],
-            gender: row['Jenis Kelamin'] || row['Gender'],
-            birthDate: row['Tanggal Lahir'],
-            school: row['Asal Sekolah'],
-            instagram: row['Instagram'],
-            whatsappAthlete: row['No WhatsApp'],
-            height: row['Tinggi Badan'],
-            photoUrl: row['Foto Anggota Club'],
-            parentName: row['Nama Lengkap (Bapak/Ibu)'],
-            parentJob: row['Pekerjaan'],
-            address: row['Alamat'],
-            whatsappParent: row['No WhatsApp'] || row['No WhatsApp_1'], // Handle dual headers if any
-            email: row['Email Aktif'],
-            sessionsPerWeek: row['Jumlah Pertemuan per minggu'],
-            trainingSchedule: row['Jadwal Latihan'],
-          }));
+          const athletes: AthleteData[] = results.data.map((row: any, i: number) => {
+            const rawName = row['Nama Lengkap']?.trim() || '';
+            const cleanId = rawName.replace(/\s+/g, '-').toLowerCase();
+            return {
+              id: `ath-${i}-${cleanId}`,
+              timestamp: row['Timestamp']?.trim() || '',
+              fullName: rawName,
+              gender: row['Jenis Kelamin']?.trim() || row['Gender']?.trim() || '',
+              birthDate: row['Tanggal Lahir']?.trim() || '',
+              school: row['Asal Sekolah']?.trim() || '',
+              instagram: row['Instagram']?.trim() || '',
+              whatsappAthlete: row['No WhatsApp']?.trim() || '',
+              height: row['Tinggi Badan']?.trim() || '',
+              photoUrl: row['Foto Anggota Club']?.trim() || '',
+              parentName: row['Nama Lengkap (Bapak/Ibu)']?.trim() || '',
+              parentJob: row['Pekerjaan']?.trim() || '',
+              address: row['Alamat']?.trim() || '',
+              whatsappParent: row['No WhatsApp']?.trim() || row['No WhatsApp_1']?.trim() || '',
+              email: row['Email Aktif']?.trim() || '',
+              sessionsPerWeek: row['Jumlah Pertemuan per minggu']?.trim() || '',
+              trainingSchedule: row['Jadwal Latihan']?.trim() || '',
+            };
+          });
           resolve(athletes);
         },
         error: (error: any) => {

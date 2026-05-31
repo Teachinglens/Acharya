@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SWIMMING_EVENTS, AthleteData } from '../types';
+import { getKelompokUmur, normalizeGender } from '../lib/athleteUtils';
 import { Loader2, Trophy } from 'lucide-react';
 
 interface Props {
@@ -21,24 +22,11 @@ export default function ResultInputForm({ athletes = [] }: Props) {
   });
 
   const handleNameChange = (name: string) => {
-    const athlete = athletes.find(a => a.fullName === name);
+    const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === name.trim().toLowerCase());
     if (athlete) {
-      const g = athlete.gender?.trim().toLowerCase();
-      const gender = (g === 'laki-laki' || g === 'l' || g === 'male') ? 'Male' : 'Female';
-      
-      let ku = '10';
-      if (athlete.birthDate) {
-        const birthYear = parseInt(athlete.birthDate.split('/').pop() || '0');
-        const age = 2026 - birthYear;
-        if (age <= 6) ku = '6';
-        else if (age <= 8) ku = '8';
-        else if (age <= 10) ku = '10';
-        else if (age <= 12) ku = '12';
-        else if (age <= 14) ku = '14';
-        else if (age <= 16) ku = '16';
-        else ku = 'Senior';
-      }
-      setForm(prev => ({ ...prev, athleteName: name, gender, ku }));
+      const gender = normalizeGender(athlete.gender);
+      const ku = getKelompokUmur(athlete.birthDate);
+      setForm(prev => ({ ...prev, athleteName: athlete.fullName, gender, ku }));
     } else {
       setForm(prev => ({ ...prev, athleteName: name }));
     }
