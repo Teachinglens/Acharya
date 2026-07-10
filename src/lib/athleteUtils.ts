@@ -39,3 +39,25 @@ export function normalizeGender(genderStr: string | null | undefined): 'Male' | 
   }
   return 'Male'; // Default fallback
 }
+
+export function sanitizeAthleteName(name: string | null | undefined): string {
+  if (!name) return '';
+  let cleaned = name.trim().toLowerCase();
+  
+  // Replace prefixes like:
+  // - "an. ", "an.", "an "
+  // - "a.n. ", "a.n.", "a.n "
+  // - "a/n. ", "a/n.", "a/n "
+  cleaned = cleaned.replace(/^(an\.\s*|an\s+|a\.n\.\s*|a\.n\s+|a\/n\.\s*|a\/n\s+)/g, '');
+  
+  // Remove dots, commas, hyphens, and multiple whitespaces to ensure standard spacing
+  cleaned = cleaned.replace(/[\.,\-]/g, '').replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
+export function isSameAthlete(nameA: string | null | undefined, nameB: string | null | undefined): boolean {
+  if (!nameA || !nameB) return false;
+  return sanitizeAthleteName(nameA) === sanitizeAthleteName(nameB);
+}
+

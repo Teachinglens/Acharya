@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { SWIMMING_EVENTS, AthleteData } from '../types';
-import { getKelompokUmur, normalizeGender } from '../lib/athleteUtils';
+import { getKelompokUmur, normalizeGender, isSameAthlete } from '../lib/athleteUtils';
 import { Loader2, Trophy } from 'lucide-react';
 
 interface Props {
@@ -22,7 +22,7 @@ export default function ResultInputForm({ athletes = [] }: Props) {
   });
 
   const handleNameChange = (name: string) => {
-    const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === name.trim().toLowerCase());
+    const athlete = athletes.find(a => isSameAthlete(a.fullName, name));
     if (athlete) {
       const gender = normalizeGender(athlete.gender);
       const ku = getKelompokUmur(athlete.birthDate);

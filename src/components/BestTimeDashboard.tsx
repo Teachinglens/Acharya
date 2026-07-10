@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { getKelompokUmur, normalizeGender } from '../lib/athleteUtils';
+import { getKelompokUmur, normalizeGender, isSameAthlete } from '../lib/athleteUtils';
 import { CompetitionResult, SWIMMING_EVENTS, Competition, AthleteData } from '../types';
 import { Trophy, Timer, Search, Trash2 } from 'lucide-react';
 
@@ -60,17 +60,19 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
     let manualResultsData: any[] = [];
 
     const enrichData = (item: any, source: 'competition_entries' | 'competition_results') => {
-      const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === item.athleteName?.trim().toLowerCase());
+      const athlete = athletes.find(a => isSameAthlete(a.fullName, item.athleteName));
       
       let gender = normalizeGender(item.gender);
       let ku = item.ku || '10';
+      let athleteName = item.athleteName;
 
       if (athlete) {
         gender = normalizeGender(athlete.gender);
         ku = getKelompokUmur(athlete.birthDate);
+        athleteName = athlete.fullName; // Use official master list name
       }
 
-      return { ...item, gender, ku, source };
+      return { ...item, athleteName, gender, ku, source };
     };
 
     const updateCombinedData = () => {
@@ -160,7 +162,7 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
     .reduce((acc: any[], current) => {
       // Find matching athlete. If filtered by "All", also match by event name.
       const existing = acc.find(item => 
-        item.athleteName.trim().toLowerCase() === current.athleteName.trim().toLowerCase() &&
+        isSameAthlete(item.athleteName, current.athleteName) &&
         (selectedEvent !== 'All' || item.eventName === current.eventName)
       );
       if (!existing) {

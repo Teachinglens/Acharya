@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, deleteDoc, deleteField, getDocs, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Competition, CompetitionEntry, AthleteData, SWIMMING_EVENTS } from '../types';
-import { getKelompokUmur, normalizeGender, getBirthYear } from '../lib/athleteUtils';
+import { getKelompokUmur, normalizeGender, getBirthYear, isSameAthlete } from '../lib/athleteUtils';
 import { Plus, Trophy, Users, Clock, Trash2, ArrowLeft, Loader2, Save, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -75,7 +75,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
     setLoading(true);
     try {
       const promises = selectedAthletes.flatMap(athleteName => {
-        const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === athleteName.trim().toLowerCase());
+        const athlete = athletes.find(a => isSameAthlete(a.fullName, athleteName));
         const gender = normalizeGender(athlete?.gender);
         const ku = getKelompokUmur(athlete?.birthDate);
 
@@ -422,7 +422,7 @@ export default function CompetitionManager({ athletes, filterStroke = 'All', fil
                     .filter(entry => {
                       if (filterStroke !== 'All' && !entry.eventName.toLowerCase().includes(filterStroke.toLowerCase())) return false;
                       if (filterKU !== 'All') {
-                        const athlete = athletes.find(a => a.fullName.trim().toLowerCase() === entry.athleteName?.trim().toLowerCase());
+                        const athlete = athletes.find(a => isSameAthlete(a.fullName, entry.athleteName));
                         if (!athlete || !athlete.birthDate) return false;
                         const entryKU = getKelompokUmur(athlete.birthDate);
                         if (entryKU !== filterKU) return false;
