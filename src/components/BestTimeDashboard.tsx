@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { getKelompokUmur, normalizeGender, isSameAthlete } from '../lib/athleteUtils';
+import { getKelompokUmur, normalizeGender, isSameAthlete, parseTimeToMs } from '../lib/athleteUtils';
 import { CompetitionResult, SWIMMING_EVENTS, Competition, AthleteData } from '../types';
 import { Trophy, Timer, Search, Trash2 } from 'lucide-react';
 
@@ -26,30 +26,9 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
   } | null>(null);
 
   const compareTimes = (timeA: string, timeB: string) => {
-    if (!timeA || !timeB) return 0;
-    const toMs = (timeStr: string) => {
-      try {
-        const parts = timeStr.split(':');
-        let mins = 0;
-        let secsWithMs = '';
-        
-        if (parts.length > 1) {
-          mins = parseInt(parts[0]) || 0;
-          secsWithMs = parts[1];
-        } else {
-          secsWithMs = parts[0];
-        }
-
-        const secsParts = secsWithMs.split('.');
-        const secs = parseInt(secsParts[0]) || 0;
-        const ms = parseInt(secsParts[1]) || 0;
-        
-        return (mins * 60 * 1000) + (secs * 1000) + (ms * 10);
-      } catch (e) {
-        return 9999999; // Fallback for invalid formats
-      }
-    };
-    return toMs(timeA) - toMs(timeB);
+    const msA = parseTimeToMs(timeA) ?? 999999999;
+    const msB = parseTimeToMs(timeB) ?? 999999999;
+    return msA - msB;
   };
 
   useEffect(() => {
@@ -155,6 +134,10 @@ export default function BestTimeDashboard({ competitions = [], athletes = [], is
 
   // Filter to get only the best time for each athlete in the selected event(s)
   const bestTimes = results
+    .filter(r => {
+      const ms = parseTimeToMs(r.time);
+      return ms !== null && ms > 0;
+    })
     .filter(r => selectedEvent === 'All' || r.eventName === selectedEvent)
     .filter(r => r.athleteName?.toLowerCase().includes(searchTerm.toLowerCase()))
     .filter(r => genderFilter === 'All' || r.gender === genderFilter)

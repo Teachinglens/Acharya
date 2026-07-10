@@ -61,3 +61,54 @@ export function isSameAthlete(nameA: string | null | undefined, nameB: string | 
   return sanitizeAthleteName(nameA) === sanitizeAthleteName(nameB);
 }
 
+export function parseTimeToMs(timeStr: string | null | undefined): number | null {
+  if (!timeStr) return null;
+  const cleaned = timeStr.trim().toUpperCase();
+  
+  // Exclude non-time placeholders
+  if (cleaned === 'NS' || cleaned === 'DQ' || cleaned === 'DNF' || cleaned === 'SCR' || cleaned === 'SCRATCH') {
+    return null;
+  }
+  
+  // If there are letters other than M, or if it has invalid chars, return null.
+  if (/[A-Z]/i.test(cleaned)) {
+    return null;
+  }
+  
+  const parts = cleaned.split(/[:\.]/);
+  const numericParts = parts.map(p => parseInt(p) || 0);
+  
+  if (numericParts.length === 0) return null;
+  
+  let mins = 0;
+  let secs = 0;
+  let ms = 0;
+  
+  if (parts.length === 3) {
+    mins = numericParts[0];
+    secs = numericParts[1];
+    ms = numericParts[2];
+  } else if (parts.length === 2) {
+    if (cleaned.includes(':')) {
+      mins = numericParts[0];
+      secs = numericParts[1];
+      ms = 0;
+    } else {
+      mins = 0;
+      secs = numericParts[0];
+      ms = numericParts[1];
+    }
+  } else if (parts.length === 1) {
+    mins = 0;
+    secs = numericParts[0];
+    ms = 0;
+  }
+  
+  const totalMs = (mins * 60 * 1000) + (secs * 1000) + (ms * 10);
+  
+  if (totalMs <= 0) return null;
+  
+  return totalMs;
+}
+
+
