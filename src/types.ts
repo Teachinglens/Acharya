@@ -18,12 +18,29 @@ export interface AthleteData {
   timestamp?: string;
 }
 
+export type NewsCategory = 'Prestasi' | 'Pengumuman' | 'Kejuaraan' | 'Latihan' | 'Komunitas';
+
+export const NEWS_CATEGORIES: NewsCategory[] = [
+  'Prestasi',
+  'Pengumuman',
+  'Kejuaraan',
+  'Latihan',
+  'Komunitas',
+];
+
 export interface NewsItem {
-  id: string;
+  id?: string;
   title: string;
+  summary?: string;
   content: string;
+  category: NewsCategory;
+  author?: string;
   date: string;
   imageUrl?: string;
+  isFeatured?: boolean;
+  status: 'published' | 'draft';
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface Competition {

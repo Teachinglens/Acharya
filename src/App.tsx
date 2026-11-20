@@ -1,23 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAthletesFromSheet } from './services/sheetService';
 import { getBirthYear } from './lib/athleteUtils';
-import { AthleteData, Competition } from './types';
+import { AthleteData, Competition, NEWS_CATEGORIES, NewsCategory, NewsItem } from './types';
 import AthleteTable from './components/AthleteTable';
 import StatsDashboard from './components/StatsDashboard';
 import BestTimeDashboard from './components/BestTimeDashboard';
 import ResultInputForm from './components/ResultInputForm';
 import CompetitionManager from './components/CompetitionManager';
 import Gallery from './components/Gallery';
+import News from './components/News';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Image as ImageIcon, Newspaper, ExternalLink, ChevronRight, Trophy } from 'lucide-react';
-import { collection, getDocs, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { ArrowRight, Calendar, Image as ImageIcon, Newspaper, ExternalLink, ChevronRight, Trophy } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { db, auth } from './lib/firebase';
+import { db, auth, handleFirestoreError, OperationType } from './lib/firebase';
+import { formatEditorialDate, resolveNewsCoverUrl } from './lib/newsAssets';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [athletes, setAthletes] = useState<AthleteData[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [latestNews, setLatestNews] = useState<NewsItem[]>([]);
+  const [selectedNewsId, setSelectedNewsId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterStroke, setFilterStroke] = useState<string>('All');
   const [filterKU, setFilterKU] = useState<string>('All');
@@ -62,7 +66,9 @@ export default function App() {
     }
   };
 
-  const stats = athletes.reduce((acc, a) => {
+  const validAthletes = athletes.filter(a => a.fullName && a.fullName.trim().length > 0);
+
+  const stats = validAthletes.reduce((acc, a) => {
     acc.total++;
     
     // Gender
@@ -86,8 +92,9 @@ export default function App() {
     }
 
     // Active / Off calculation based on trainingSchedule
+    // Empty schedule / empty data is NOT categorized as 'off'
     const schedule = a.trainingSchedule?.trim().toLowerCase() || '';
-    if (schedule === 'rest' || schedule.includes('rest') || schedule === '') {
+    if (schedule === 'rest' || schedule.includes('rest') || schedule === 'off' || schedule.includes('off')) {
       acc.off++;
     } else {
       acc.active++;
@@ -113,9 +120,45 @@ export default function App() {
       setCompetitions(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Competition)));
     });
 
+    // Listen to published news for Dashboard preview
+    const newsQuery = query(collection(db, 'news'), where('status', '==', 'published'));
+    const unsubscribeNews = onSnapshot(
+      newsQuery,
+      (snapshot) => {
+        const items: NewsItem[] = snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            title: data.title || 'Tanpa Judul',
+            summary: data.summary || '',
+            content: data.content || '',
+            category: (NEWS_CATEGORIES.includes(data.category) ? data.category : 'Pengumuman') as NewsCategory,
+            author: data.author || 'Tim Media Acharya',
+            date: data.date || '',
+            imageUrl: data.imageUrl || '',
+            isFeatured: Boolean(data.isFeatured),
+            status: 'published',
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+          };
+        });
+        items.sort((a, b) => {
+          if (Boolean(a.isFeatured) !== Boolean(b.isFeatured)) {
+            return a.isFeatured ? -1 : 1;
+          }
+          return (b.date || '').localeCompare(a.date || '');
+        });
+        setLatestNews(items.slice(0, 3));
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'news');
+      }
+    );
+
     return () => {
       unsubscribeAuth();
       unsubscribeComps();
+      unsubscribeNews();
     };
   }, []);
 
@@ -129,7 +172,7 @@ export default function App() {
     })
     .slice(0, 3);
 
-  const isSidebarHidden = activeTab === 'Dashboard' || activeTab === 'Best Time' || activeTab === 'Gallery';
+  const isSidebarHidden = activeTab === 'Dashboard' || activeTab === 'Best Time' || activeTab === 'Gallery' || activeTab === 'News';
 
   return (
     <div className={`main-grid ${isSidebarHidden ? 'sidebar-hidden' : ''}`}>
@@ -152,12 +195,15 @@ export default function App() {
           </div>
         </div>
         
-        <nav className="flex gap-10">
+        <nav className="flex gap-6 md:gap-10">
           {['Dashboard', 'Event', 'Best Time', 'Gallery', 'News'].map((item) => (
             <button 
               key={item} 
-              onClick={() => setActiveTab(item)}
-              className={`text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer relative group ${activeTab === item ? 'text-brand-blue' : 'text-slate-400 hover:text-brand-blue'}`}
+              onClick={() => {
+                setActiveTab(item);
+                if (item !== 'News') setSelectedNewsId(null);
+              }}
+              className={`text-[10px] font-black uppercase tracking-widest transition-colors cursor-pointer relative group whitespace-nowrap shrink-0 ${activeTab === item ? 'text-brand-blue' : 'text-slate-400 hover:text-brand-blue'}`}
             >
               {item}
               <span className={`absolute -bottom-1 left-0 h-0.5 bg-brand-blue transition-all duration-300 ${activeTab === item ? 'w-full' : 'w-0 group-hover:w-full'}`}></span>
@@ -165,16 +211,18 @@ export default function App() {
           ))}
         </nav>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           {user ? (
             <div className="flex items-center gap-3">
               <div className="text-right hidden md:block">
-                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Authenticated</div>
-                <div className="text-[10px] font-bold text-brand-blue truncate max-w-[120px]">{user.displayName || user.email}</div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  {isAdmin ? 'Admin Aktif' : 'Authenticated'}
+                </div>
+                <div className="text-[10px] font-bold text-brand-blue truncate max-w-[140px]">{user.displayName || user.email}</div>
               </div>
               <button 
                 onClick={handleLogout}
-                className="bg-slate-100 text-slate-500 hover:text-red-500 p-2 rounded-lg transition-colors border border-slate-200"
+                className="bg-slate-100 text-slate-500 hover:text-red-500 p-2 rounded-lg transition-colors border border-slate-200 cursor-pointer"
                 title="Logout"
               >
                 <ExternalLink size={14} />
@@ -183,17 +231,17 @@ export default function App() {
           ) : (
             <button 
               onClick={handleLogin}
-              className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-blue transition-all border border-slate-200 px-4 py-2 rounded-lg"
+              className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-blue transition-all border border-slate-200 px-4 py-2 rounded-lg whitespace-nowrap shrink-0 cursor-pointer"
             >
               Admin Login
             </button>
           )}
 
-          {activeTab !== 'Gallery' && (
+          {activeTab !== 'Gallery' && activeTab !== 'News' && (
             <button 
               onClick={loadData}
               disabled={loading}
-              className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-full border border-green-100 shadow-sm hover:bg-green-100 transition-colors disabled:opacity-50 group"
+              className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-full border border-green-100 shadow-sm hover:bg-green-100 transition-colors disabled:opacity-50 group whitespace-nowrap shrink-0 cursor-pointer"
             >
               <div className="relative flex h-2 w-2">
                 <span className={`${loading ? 'animate-spin' : 'animate-ping'} absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75`}></span>
@@ -368,7 +416,7 @@ export default function App() {
                       <p>Acharya Swimming Club adalah wadah pembinaan olahraga renang yang berfokus pada pengembangan kemampuan teknik, mental, dan karakter atlet sejak usia dini hingga tingkat prestasi.</p>
                       <p>Didirikan dengan semangat mencetak generasi yang sehat, disiplin, dan berprestasi, Acharya Swimming Club menghadirkan program latihan yang terstruktur, menyenangkan, dan berorientasi pada hasil.</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-3">
                       <a 
                         href={GFORM_URL}
                         target="_blank"
@@ -377,13 +425,93 @@ export default function App() {
                       >
                         Daftar Sekarang
                       </a>
-                      <button className="bg-white/10 text-white border border-white/20 px-6 py-3 rounded-lg font-bold hover:bg-white/20 transition-all active:scale-95 text-xs">
+                      <button 
+                        onClick={() => setActiveTab('Best Time')}
+                        className="bg-white/10 text-white border border-white/20 px-6 py-3 rounded-lg font-bold hover:bg-white/20 transition-all active:scale-95 text-xs cursor-pointer"
+                      >
                         Lihat Prestasi
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('News')}
+                        className="bg-white/10 text-white border border-white/20 px-6 py-3 rounded-lg font-bold hover:bg-white/20 transition-all active:scale-95 text-xs inline-flex items-center gap-2 cursor-pointer"
+                      >
+                        <Newspaper size={14} /> Kabar Klub
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
+
+              {/* Latest Club News Quick Access on Dashboard */}
+              <section className="card">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-xl font-serif font-semibold text-slate-900">
+                      Kabar & Pengumuman Terbaru
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Berita resmi kejuaraan, jadwal, dan kegiatan Acharya Swimming Club.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('News')}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-navy transition-colors cursor-pointer"
+                  >
+                    {isAdmin ? 'Kelola & Tulis Berita' : 'Buka Halaman News'} <ArrowRight size={14} />
+                  </button>
+                </div>
+
+                {latestNews.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {latestNews.map((item) => (
+                      <article
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedNewsId(item.id || null);
+                          setActiveTab('News');
+                        }}
+                        className="border border-slate-200 rounded-xl overflow-hidden hover:border-brand-blue/40 transition-colors cursor-pointer group flex flex-col bg-white"
+                      >
+                        <div className="aspect-[16/10] w-full overflow-hidden bg-slate-100">
+                          <img
+                            src={resolveNewsCoverUrl(item.imageUrl, item.category)}
+                            alt={item.title}
+                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div className="p-4 flex-1 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                              <span className="font-semibold text-brand-blue">{item.category}</span>
+                              <span aria-hidden="true">·</span>
+                              <span className="tabular-nums">{formatEditorialDate(item.date)}</span>
+                            </div>
+                            <h3 className="text-base font-serif font-semibold text-slate-900 group-hover:text-brand-blue transition-colors line-clamp-2">
+                              {item.title}
+                            </h3>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue mt-3">
+                            Baca Selengkapnya <ArrowRight size={12} />
+                          </span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center">
+                    <p className="text-sm text-slate-500 mb-4">
+                      Belum ada berita yang diterbitkan. Buka menu News untuk melihat atau menerbitkan kabar klub.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('News')}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue text-white rounded-lg text-xs font-semibold hover:bg-brand-navy transition-colors cursor-pointer"
+                    >
+                      <Newspaper size={14} /> {isAdmin ? 'Tulis Berita Pertama' : 'Buka Menu News'}
+                    </button>
+                  </div>
+                )}
+              </section>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <AthleteTable athletes={athletes} />
@@ -454,11 +582,22 @@ export default function App() {
             >
               <Gallery isAdmin={isAdmin} />
             </motion.div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-slate-300 uppercase font-black tracking-widest">
-              Coming Soon
-            </div>
-          )}
+          ) : activeTab === 'News' ? (
+            <motion.div 
+              key="news"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <News 
+                isAdmin={isAdmin} 
+                user={user} 
+                onLogin={handleLogin} 
+                initialArticleId={selectedNewsId}
+                onClearInitialArticle={() => setSelectedNewsId(null)}
+              />
+            </motion.div>
+          ) : null}
         </AnimatePresence>
       </main>
     </div>

@@ -26,11 +26,19 @@
       "description": "Latest news and updates from the club.",
       "type": "object",
       "properties": {
-        "title": { "type": "string" },
-        "content": { "type": "string" },
-        "date": { "type": "string" },
-        "imageUrl": { "type": "string" }
-      }
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "minLength": 1, "maxLength": 20000 },
+        "category": { "type": "string", "enum": ["Prestasi", "Pengumuman", "Kejuaraan", "Latihan", "Komunitas"] },
+        "author": { "type": "string", "maxLength": 120 },
+        "date": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "imageUrl": { "type": "string", "maxLength": 2000 },
+        "isFeatured": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["published", "draft"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "category", "date", "status", "createdAt", "updatedAt"]
     },
     "CompetitionResult": {
       "title": "Competition Result",

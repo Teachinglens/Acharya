@@ -1,18 +1,28 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
+    // Global default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // Helper primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == "mahardikasandy1992@gmail.com";
+      return isSignedIn() &&
+             request.auth.token.email == "mahardikasandy1992@gmail.com" &&
+             request.auth.token.email_verified == true;
     }
 
     function isValidId(id) {
@@ -26,16 +36,46 @@ service cloud.firestore {
              data.whatsappParent is string && data.whatsappParent.size() <= 50;
     }
 
-    // Registrations: Anyone can create (public sign up)
-    match /registrations/{regId} {
-      allow create: if isValidAthlete(request.resource.data);
-      allow get, list, update, delete: if isAdmin(); 
+    function isValidNews(data) {
+      return data.keys().hasAll(['title', 'content', 'category', 'date', 'status', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['title', 'summary', 'content', 'category', 'author', 'date', 'imageUrl', 'isFeatured', 'status', 'createdAt', 'updatedAt']) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             (!('summary' in data) || (data.summary is string && data.summary.size() <= 500)) &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 20000 &&
+             data.category in ['Prestasi', 'Pengumuman', 'Kejuaraan', 'Latihan', 'Komunitas'] &&
+             (!('author' in data) || (data.author is string && data.author.size() <= 120)) &&
+             data.date is string && data.date.size() >= 1 && data.date.size() <= 50 &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000)) &&
+             (!('isFeatured' in data) || data.isFeatured is bool) &&
+             data.status in ['published', 'draft'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
     }
 
-    // News: Public read, Admin write
+    // Registrations: Anyone can create (public sign up), Admin manages
+    match /registrations/{regId} {
+      allow create: if isValidId(regId) && isValidAthlete(incoming());
+      allow get: if isAdmin() && isValidId(regId);
+      allow list: if isAdmin();
+      allow update, delete: if isAdmin() && isValidId(regId);
+    }
+
+    // News: Public read for published articles, Admin full access
     match /news/{newsId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow get: if isValidId(newsId) && (isAdmin() || !('status' in existing()) || existing().status == 'published');
+      allow list: if isAdmin() || existing().status == 'published';
+      allow create: if isAdmin() &&
+                       isValidId(newsId) &&
+                       isValidNews(incoming()) &&
+                       incoming().createdAt == request.time &&
+                       incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+                       isValidId(newsId) &&
+                       isValidNews(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt == request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary', 'content', 'category', 'author', 'date', 'imageUrl', 'isFeatured', 'status', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(newsId);
     }
 
     // Competition Results: Public read, Admin write

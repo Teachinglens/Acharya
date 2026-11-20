@@ -11,13 +11,15 @@ export default function AthleteTable({ athletes }: Props) {
 
   const getAthleteStatus = (trainingSchedule?: string) => {
     const s = trainingSchedule?.trim().toLowerCase() || '';
-    if (s === 'rest' || s.includes('rest') || s === '') {
+    if (s === 'rest' || s.includes('rest') || s === 'off' || s.includes('off')) {
       return 'Off';
     }
     return 'Active';
   };
 
-  const filteredAthletes = athletes.filter(athlete => {
+  const validAthletes = athletes.filter(a => a.fullName && a.fullName.trim().length > 0);
+
+  const filteredAthletes = validAthletes.filter(athlete => {
     const status = getAthleteStatus(athlete.trainingSchedule);
     const matchesFilter = statusFilter === 'All' || status === statusFilter;
     const matchesSearch = athlete.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -25,8 +27,8 @@ export default function AthleteTable({ athletes }: Props) {
     return matchesFilter && matchesSearch;
   });
 
-  const activeCount = athletes.filter(a => getAthleteStatus(a.trainingSchedule) === 'Active').length;
-  const offCount = athletes.filter(a => getAthleteStatus(a.trainingSchedule) === 'Off').length;
+  const activeCount = validAthletes.filter(a => getAthleteStatus(a.trainingSchedule) === 'Active').length;
+  const offCount = validAthletes.filter(a => getAthleteStatus(a.trainingSchedule) === 'Off').length;
 
   return (
     <div className="card flex-1 flex flex-col overflow-hidden min-h-[400px]">
@@ -46,7 +48,7 @@ export default function AthleteTable({ athletes }: Props) {
           />
           <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             {(['All', 'Active', 'Off'] as const).map((filter) => {
-              const count = filter === 'All' ? athletes.length : filter === 'Active' ? activeCount : offCount;
+              const count = filter === 'All' ? validAthletes.length : filter === 'Active' ? activeCount : offCount;
               return (
                 <button
                   key={filter}

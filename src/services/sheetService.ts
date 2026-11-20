@@ -13,29 +13,34 @@ export async function fetchAthletesFromSheet(): Promise<AthleteData[]> {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          const athletes: AthleteData[] = results.data.map((row: any, i: number) => {
-            const rawName = row['Nama Lengkap']?.trim() || '';
-            const cleanId = rawName.replace(/\s+/g, '-').toLowerCase();
-            return {
-              id: `ath-${i}-${cleanId}`,
-              timestamp: row['Timestamp']?.trim() || '',
-              fullName: rawName,
-              gender: row['Jenis Kelamin']?.trim() || row['Gender']?.trim() || '',
-              birthDate: row['Tanggal Lahir']?.trim() || '',
-              school: row['Asal Sekolah']?.trim() || '',
-              instagram: row['Instagram']?.trim() || '',
-              whatsappAthlete: row['No WhatsApp']?.trim() || '',
-              height: row['Tinggi Badan']?.trim() || '',
-              photoUrl: row['Foto Anggota Club']?.trim() || '',
-              parentName: row['Nama Lengkap (Bapak/Ibu)']?.trim() || '',
-              parentJob: row['Pekerjaan']?.trim() || '',
-              address: row['Alamat']?.trim() || '',
-              whatsappParent: row['No WhatsApp']?.trim() || row['No WhatsApp_1']?.trim() || '',
-              email: row['Email Aktif']?.trim() || '',
-              sessionsPerWeek: row['Jumlah Pertemuan per minggu']?.trim() || '',
-              trainingSchedule: row['Jadwal Latihan']?.trim() || '',
-            };
-          });
+          const athletes: AthleteData[] = results.data
+            .filter((row: any) => {
+              const rawName = row['Nama Lengkap']?.trim() || row['Nama']?.trim() || '';
+              return rawName.length > 0;
+            })
+            .map((row: any, i: number) => {
+              const rawName = row['Nama Lengkap']?.trim() || row['Nama']?.trim() || '';
+              const cleanId = rawName.replace(/\s+/g, '-').toLowerCase();
+              return {
+                id: `ath-${i}-${cleanId}`,
+                timestamp: row['Timestamp']?.trim() || '',
+                fullName: rawName,
+                gender: row['Jenis Kelamin']?.trim() || row['Gender']?.trim() || '',
+                birthDate: row['Tanggal Lahir']?.trim() || '',
+                school: row['Asal Sekolah']?.trim() || '',
+                instagram: row['Instagram']?.trim() || '',
+                whatsappAthlete: row['No WhatsApp']?.trim() || '',
+                height: row['Tinggi Badan']?.trim() || '',
+                photoUrl: row['Foto Anggota Club']?.trim() || '',
+                parentName: row['Nama Lengkap (Bapak/Ibu)']?.trim() || row['Nama Ortu']?.trim() || '',
+                parentJob: row['Pekerjaan']?.trim() || '',
+                address: row['Alamat']?.trim() || '',
+                whatsappParent: row['No WhatsApp_1']?.trim() || row['No WhatsApp']?.trim() || '',
+                email: row['Email Aktif']?.trim() || '',
+                sessionsPerWeek: row['Jumlah Pertemuan per minggu']?.trim() || '',
+                trainingSchedule: row['Jadwal Latihan']?.trim() || '',
+              };
+            });
           resolve(athletes);
         },
         error: (error: any) => {
